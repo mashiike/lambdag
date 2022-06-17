@@ -27,7 +27,7 @@ So here is the simplest StateMachine example
 
 [definition.asl.json](https://github.com/mashiike/lambdag/blob/main/_examples/definition.asl.json)
 
-and, The Lambda function that this state machine calls is written as follows
+and, The Lambda function that this state machine invokes is written as follows
 
 ```go
 package main
@@ -74,7 +74,14 @@ func main() {
 }
 ```
 
-To run For example:
+It is assumed to work with the runtime of the provided.al2
+
+The build should look like this
+```$shell 
+$ GOOS=linux GOARCH=arm64 go build -o bootstrap _examples/src/main.go
+```
+
+To run the example in a Local environment using [StepFunctions Local](https://docs.aws.amazon.com/step-functions/latest/dg/sfn-local.html)
 
 ```shell
 $ cd _examples
@@ -83,7 +90,6 @@ $ make build
 $ make run/<execution_name>
 $ make history/<execution_name>
 ```
-
 
 ## Usage (for local development)
 

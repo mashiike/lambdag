@@ -172,3 +172,22 @@ func (dag *DAG) IsExecutableTask(taskID string, finishedTaskIDs []string) bool {
 	})
 	return len(nonFinishedUpstreamTasks) == 0
 }
+
+func (dag *DAG) WarkAllDependencies(fn func(ancestor *Task, descendant *Task) error) error {
+	tasks := dag.GetAllTasks()
+	for _, ancestor := range tasks {
+		for _, descendant := range tasks {
+			if descendant.ID() == ancestor.ID() {
+				continue
+			}
+			if edge, err := dag.dependencies.IsEdge(ancestor.ID(), descendant.ID()); err != nil {
+				return err
+			} else if edge {
+				if err := fn(ancestor, descendant); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}

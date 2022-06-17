@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/awalterschulze/gographviz"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/google/subcommands"
 )
@@ -52,6 +54,7 @@ func newCommander(args []string, dag *DAG) (*subcommands.Commander, *flag.FlagSe
 	commander.Register(commander.FlagsCommand(), "")
 	commander.Register(commander.CommandsCommand(), "")
 	commander.Register(&serveCommand{dag: dag, commander: commander}, "")
+	commander.Register(&renderCommand{dag: dag, commander: commander}, "")
 	return commander, fs
 }
 
@@ -104,5 +107,69 @@ func (cmd *serveCommand) Execute(ctx context.Context, fs *flag.FlagSet, _ ...int
 		wg.Done()
 	}
 	wg.Wait()
+	return subcommands.ExitSuccess
+}
+
+type renderCommand struct {
+	commander *subcommands.Commander
+	dag       *DAG
+	format    string
+}
+
+func (cmd *renderCommand) Name() string     { return "render" }
+func (cmd *renderCommand) Synopsis() string { return "rendering DAG" }
+func (cmd *renderCommand) SetFlags(fs *flag.FlagSet) {
+	fs.StringVar(&cmd.format, "format", "dot", "rendering format")
+}
+func (cmd *renderCommand) Usage() string {
+	return `render [options]:
+	Renders the DAG as some form of...
+`
+}
+
+func (cmd *renderCommand) Execute(ctx context.Context, fs *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+	if fs.Arg(0) == "help" {
+		cmd.commander.ExplainCommand(cmd.commander.Output, cmd)
+		return subcommands.ExitSuccess
+	}
+	switch cmd.format {
+	case "dot":
+		return cmd.renderDOT(ctx, os.Stdout)
+	}
+	log.Println("[error] unknown format")
+	return subcommands.ExitFailure
+}
+
+func (cmd *renderCommand) renderDOT(ctx context.Context, stdout io.Writer) subcommands.ExitStatus {
+	g := gographviz.NewGraph()
+	graphName := cmd.dag.ID()
+	nodeAttrs := make(map[string]string)
+	edgeAttrs := make(map[string]string)
+	edgeAttrs["arrowhead"] = "vee"
+	if err := g.SetName(graphName); err != nil {
+		log.Println("[error] ", err)
+		return subcommands.ExitFailure
+	}
+	if err := g.SetDir(true); err != nil {
+		log.Println("[error] ", err)
+		return subcommands.ExitFailure
+	}
+	tasks := cmd.dag.GetAllTasks()
+	for _, task := range tasks {
+		nodeAttrs["shape"] = `"ellipse"`
+		nodeAttrs["style"] = `"filled"`
+		nodeName := task.ID()
+		if err := g.AddNode(graphName, nodeName, nodeAttrs); err != nil {
+			log.Println("[error] ", err)
+			return subcommands.ExitFailure
+		}
+	}
+	if err := cmd.dag.WarkAllDependencies(func(ancestor, descendant *Task) error {
+		return g.AddEdge(ancestor.ID(), descendant.ID(), true, edgeAttrs)
+	}); err != nil {
+		log.Println("[error] ", err)
+		return subcommands.ExitFailure
+	}
+	io.WriteString(stdout, g.String())
 	return subcommands.ExitSuccess
 }

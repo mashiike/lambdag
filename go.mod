@@ -4,6 +4,7 @@ go 1.18
 
 require (
 	github.com/Songmu/flextime v0.1.0
+	github.com/awalterschulze/gographviz v2.0.3+incompatible
 	github.com/aws/aws-lambda-go v1.32.0
 	github.com/aws/aws-sdk-go-v2 v1.16.5
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.23.2

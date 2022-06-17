@@ -74,6 +74,8 @@ func main() {
 }
 ```
 
+![SampleDAG](docs/sample_dag.png)
+
 It is assumed to work with the runtime of the provided.al2
 
 The build should look like this
@@ -106,6 +108,7 @@ Subcommands:
         commands         list all command names
         flags            describe all known top-level flags
         help             describe subcommands and their syntax
+        render           rendering DAG
         serve            start a stub server for the lambda Invoke API
 ```
 

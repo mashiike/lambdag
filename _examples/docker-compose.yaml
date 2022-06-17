@@ -1,0 +1,25 @@
+version: "3.9"
+services:
+  step-functions-local:
+    image: amazon/aws-stepfunctions-local
+    env_file:
+      - aws-stepfunctions-local-credentials.txt
+    ports:
+      - '8083:8083'
+    networks:
+      - net
+    depends_on:
+      - stub-lambda
+
+  stub-lambda:
+    image: golang:1.18
+    working_dir: $PWD
+    volumes:
+      - $PWD/../:$PWD/../
+    command: go run src/main.go serve -port 3001
+    networks:
+      - net
+
+networks:
+  net:
+    driver: bridge

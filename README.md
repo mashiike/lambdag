@@ -25,6 +25,8 @@ So here is the simplest StateMachine example
 
 ![simplest](docs/stepfunctions_graph.png)
 
+[definition.asl.json](https://github.com/mashiike/lambdag/blob/main/_examples/definition.asl.json)
+
 and, The Lambda function that this state machine calls is written as follows
 
 ```go

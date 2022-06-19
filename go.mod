@@ -13,6 +13,7 @@ require (
 	github.com/heimdalr/dag v1.1.1
 	github.com/samber/lo v1.21.0
 	github.com/stretchr/testify v1.7.2
+	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
 )
 
 require (

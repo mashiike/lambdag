@@ -16,12 +16,20 @@ type DAG struct {
 }
 
 type DAGOptions struct {
-	newLoggerFunc func(*DAGRunContext) (*log.Logger, error)
+	newLoggerFunc            func(*DAGRunContext) (*log.Logger, error)
+	numOfTasksInSingleInvoke int
 }
 
 func WithDAGLogger(fn func(*DAGRunContext) (*log.Logger, error)) func(opts *DAGOptions) error {
 	return func(opts *DAGOptions) error {
 		opts.newLoggerFunc = fn
+		return nil
+	}
+}
+
+func WithNumOfTasksInSingleInvoke(num int) func(opts *DAGOptions) error {
+	return func(opts *DAGOptions) error {
+		opts.numOfTasksInSingleInvoke = num
 		return nil
 	}
 }
@@ -65,6 +73,13 @@ func (dag *DAG) NewLogger(ctx *DAGRunContext) (*log.Logger, error) {
 		return log.Default(), nil
 	}
 	return dag.opts.newLoggerFunc(ctx)
+}
+
+func (dag *DAG) NumOfTasksInSingleInvoke() int {
+	if dag.opts.numOfTasksInSingleInvoke <= 0 {
+		return 1
+	}
+	return dag.opts.numOfTasksInSingleInvoke
 }
 
 func (dag *DAG) AddDependency(ancestor *Task, descendant *Task) error {

@@ -14,36 +14,36 @@ func TestDAG(t *testing.T) {
 	require.NoError(t, err)
 	task1, err := dag.NewTask(
 		"task1",
-		lambdag.TaskHandlerFunc(func(ctx context.Context, tr *lambdag.TaskRequest) (*lambdag.TaskResponse, error) {
-			return &lambdag.TaskResponse{}, nil
+		lambdag.TaskHandlerFunc(func(ctx context.Context, tr *lambdag.TaskRequest) (interface{}, error) {
+			return nil, nil
 		}),
 	)
 	require.NoError(t, err)
 	task2, err := dag.NewTask(
 		"task2",
-		lambdag.TaskHandlerFunc(func(ctx context.Context, tr *lambdag.TaskRequest) (*lambdag.TaskResponse, error) {
-			return &lambdag.TaskResponse{}, nil
+		lambdag.TaskHandlerFunc(func(ctx context.Context, tr *lambdag.TaskRequest) (interface{}, error) {
+			return nil, nil
 		}),
 	)
 	require.NoError(t, err)
 	task3, err := dag.NewTask(
 		"task3",
-		lambdag.TaskHandlerFunc(func(ctx context.Context, tr *lambdag.TaskRequest) (*lambdag.TaskResponse, error) {
-			return &lambdag.TaskResponse{}, nil
+		lambdag.TaskHandlerFunc(func(ctx context.Context, tr *lambdag.TaskRequest) (interface{}, error) {
+			return nil, nil
 		}),
 	)
 	require.NoError(t, err)
 	task4, err := dag.NewTask(
 		"task4",
-		lambdag.TaskHandlerFunc(func(ctx context.Context, tr *lambdag.TaskRequest) (*lambdag.TaskResponse, error) {
-			return &lambdag.TaskResponse{}, nil
+		lambdag.TaskHandlerFunc(func(ctx context.Context, tr *lambdag.TaskRequest) (interface{}, error) {
+			return nil, nil
 		}),
 	)
 	require.NoError(t, err)
 	task5, err := dag.NewTask(
 		"task5",
-		lambdag.TaskHandlerFunc(func(ctx context.Context, tr *lambdag.TaskRequest) (*lambdag.TaskResponse, error) {
-			return &lambdag.TaskResponse{}, nil
+		lambdag.TaskHandlerFunc(func(ctx context.Context, tr *lambdag.TaskRequest) (interface{}, error) {
+			return nil, nil
 		}),
 	)
 	require.NoError(t, err)

@@ -20,21 +20,17 @@ type TaskOptions struct {
 type TaskRequest struct {
 	DAGRunID      string
 	DAGRunConfig  json.RawMessage
-	TaskResponses map[string]*TaskResponse
+	TaskResponses map[string]json.RawMessage
 	Logger        *log.Logger
 }
 
-type TaskResponse struct {
-	Payload json.Marshaler `json:"Payload,omitempty"`
-}
-
 type TaskHandler interface {
-	Invoke(context.Context, *TaskRequest) (*TaskResponse, error)
+	Invoke(context.Context, *TaskRequest) (interface{}, error)
 }
 
-type TaskHandlerFunc func(context.Context, *TaskRequest) (*TaskResponse, error)
+type TaskHandlerFunc func(context.Context, *TaskRequest) (interface{}, error)
 
-func (h TaskHandlerFunc) Invoke(ctx context.Context, req *TaskRequest) (*TaskResponse, error) {
+func (h TaskHandlerFunc) Invoke(ctx context.Context, req *TaskRequest) (interface{}, error) {
 	return h(ctx, req)
 }
 

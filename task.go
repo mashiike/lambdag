@@ -3,6 +3,7 @@ package lambdag
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 )
@@ -16,6 +17,7 @@ type Task struct {
 
 type TaskOptions struct {
 	newLoggerFunc func(context.Context, *DAGRunContext) (*log.Logger, error)
+	newLockerFunc func(context.Context, *DAGRunContext) (LockerWithError, error)
 }
 
 type TaskRequest struct {
@@ -38,6 +40,13 @@ func (h TaskHandlerFunc) Invoke(ctx context.Context, req *TaskRequest) (interfac
 func WithTaskLogger(fn func(context.Context, *DAGRunContext) (*log.Logger, error)) func(opts *TaskOptions) error {
 	return func(opts *TaskOptions) error {
 		opts.newLoggerFunc = fn
+		return nil
+	}
+}
+
+func WithTaskLocker(fn func(context.Context, *DAGRunContext) (LockerWithError, error)) func(opts *TaskOptions) error {
+	return func(opts *TaskOptions) error {
+		opts.newLockerFunc = fn
 		return nil
 	}
 }
@@ -71,6 +80,13 @@ func (task *Task) NewLogger(ctx context.Context, dagRunCtx *DAGRunContext) (*log
 	return task.opts.newLoggerFunc(ctx, dagRunCtx)
 }
 
+func (task *Task) NewLocker(ctx context.Context, dagRunCtx *DAGRunContext) (LockerWithError, error) {
+	if task.opts.newLockerFunc == nil {
+		return NopLocker{}, nil
+	}
+	return task.opts.newLockerFunc(ctx, dagRunCtx)
+}
+
 func (task *Task) SetDownstream(descendants ...*Task) error {
 	for _, descendant := range descendants {
 		if err := task.dag.AddDependency(task, descendant); err != nil {
@@ -101,6 +117,20 @@ func (task *Task) Execute(ctx context.Context, dagRunCtx *DAGRunContext) (json.R
 	l, err := task.NewLogger(ctx, dagRunCtx)
 	if err != nil {
 		return nil, err
+	}
+	locker, err := task.NewLocker(ctx, dagRunCtx)
+	if err != nil {
+		l.Printf("[error] create locker : DAGRunId %s    Error %s", dagRunCtx.DAGRunID, err.Error())
+		return nil, err
+	}
+	lockGranted, err := locker.LockWithErr(ctx)
+	if err != nil {
+		l.Printf("[error] lock : DAGRunId %s    Error %s", dagRunCtx.DAGRunID, err.Error())
+		return nil, err
+	}
+	if !lockGranted {
+		l.Printf("[warn] can not get lock : DAGRunId %s", dagRunCtx.DAGRunID)
+		return nil, WrapTaskRetryable(errors.New("can not get lock"))
 	}
 	req := &TaskRequest{
 		DAGRunID:      dagRunCtx.DAGRunID,

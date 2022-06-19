@@ -53,12 +53,15 @@ func (h *LambdaHandler) Invoke(ctx context.Context, payload json.RawMessage) (in
 	if err != nil {
 		var tre *TaskRetryableError
 		if errors.As(err, &tre) {
+			if h.dag.NumOfTasksInSingleInvoke() > 1 {
+				updatedDAGRunCtx.Continue = true
+				return updatedDAGRunCtx, nil
+			}
 			return nil, messages.InvokeResponse_Error{
 				Message: tre.Error(),
 				Type:    "LambDAG.Retryable",
 			}
 		}
-
 		var jme *json.MarshalerError
 		if errors.As(err, &jme) {
 			return nil, messages.InvokeResponse_Error{

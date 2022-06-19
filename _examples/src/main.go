@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"os"
 	"os/signal"
@@ -18,18 +17,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	task1, err := dag.NewTask("task1", lambdag.TaskHandlerFunc(func(ctx context.Context, tr *lambdag.TaskRequest) (*lambdag.TaskResponse, error) {
-		return &lambdag.TaskResponse{
-			Payload: json.RawMessage(`"task1 success"`),
-		}, nil
+	task1, err := dag.NewTask("task1", lambdag.TaskHandlerFunc(func(ctx context.Context, tr *lambdag.TaskRequest) (interface{}, error) {
+		return `"task1 success"`, nil
 	}))
 	if err != nil {
 		log.Fatal(err)
 	}
-	task2, err := dag.NewTask("task2", lambdag.TaskHandlerFunc(func(ctx context.Context, tr *lambdag.TaskRequest) (*lambdag.TaskResponse, error) {
-		return &lambdag.TaskResponse{
-			Payload: json.RawMessage("task2 success"),
-		}, nil
+	task2, err := dag.NewTask("task2", lambdag.TaskHandlerFunc(func(ctx context.Context, tr *lambdag.TaskRequest) (interface{}, error) {
+		return "task2 success", nil
 	}))
 	if err != nil {
 		log.Fatal(err)

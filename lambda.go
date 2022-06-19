@@ -3,10 +3,13 @@ package lambdag
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Songmu/flextime"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/aws/aws-lambda-go/lambda/messages"
 	"github.com/google/uuid"
 )
 
@@ -30,6 +33,7 @@ type DAGRunContext struct {
 	TaskResponses   map[string]json.RawMessage `json:"TaskResponses,omitempty"`
 	LambdaCallCount int                        `json:"LambdaCallCount"`
 	Continue        bool                       `json:"Continue"`
+	IsCircuitBreak  bool                       `json:"IsCircuitBreak"`
 }
 
 func (h *LambdaHandler) Invoke(ctx context.Context, payload json.RawMessage) (interface{}, error) {
@@ -45,5 +49,30 @@ func (h *LambdaHandler) Invoke(ctx context.Context, payload json.RawMessage) (in
 		dagRunCtx.DAGRunStartAt = flextime.Now()
 		dagRunCtx.LambdaCallCount = 0
 	}
-	return h.dag.Execute(ctx, &dagRunCtx)
+	updatedDAGRunCtx, err := h.dag.Execute(ctx, &dagRunCtx)
+	if err != nil {
+		var tre *TaskRetryableError
+		if errors.As(err, &tre) {
+			return nil, messages.InvokeResponse_Error{
+				Message: tre.Error(),
+				Type:    "LambDAG.Retryable",
+			}
+		}
+
+		var jme *json.MarshalerError
+		if errors.As(err, &jme) {
+			return nil, messages.InvokeResponse_Error{
+				Message: err.Error(),
+				Type:    "LambDAG.ResponseInvalid",
+			}
+		}
+		return nil, err
+	}
+	if updatedDAGRunCtx.IsCircuitBreak {
+		return dagRunCtx, messages.InvokeResponse_Error{
+			Message: fmt.Sprintf("CircuitBreak: lambda call count over %d", h.dag.CircuitBreaker()),
+			Type:    "LambDAG.CircuitBreak",
+		}
+	}
+	return updatedDAGRunCtx, nil
 }

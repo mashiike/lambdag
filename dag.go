@@ -2,15 +2,12 @@ package lambdag
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"sort"
 	"sync"
 
 	"github.com/Songmu/flextime"
-	"github.com/aws/aws-lambda-go/lambda/messages"
 	libdag "github.com/heimdalr/dag"
 	"github.com/samber/lo"
 	"golang.org/x/sync/errgroup"
@@ -23,12 +20,12 @@ type DAG struct {
 }
 
 type DAGOptions struct {
-	newLoggerFunc            func(*DAGRunContext) (*log.Logger, error)
+	newLoggerFunc            func(context.Context, *DAGRunContext) (*log.Logger, error)
 	numOfTasksInSingleInvoke int
 	circuitBreaker           int
 }
 
-func WithDAGLogger(fn func(*DAGRunContext) (*log.Logger, error)) func(opts *DAGOptions) error {
+func WithDAGLogger(fn func(context.Context, *DAGRunContext) (*log.Logger, error)) func(opts *DAGOptions) error {
 	return func(opts *DAGOptions) error {
 		opts.newLoggerFunc = fn
 		return nil
@@ -83,11 +80,11 @@ func (dag *DAG) NewTask(taskID string, handler TaskHandler, optFns ...func(opts 
 	return task, err
 }
 
-func (dag *DAG) NewLogger(ctx *DAGRunContext) (*log.Logger, error) {
+func (dag *DAG) NewLogger(ctx context.Context, dagRunCtx *DAGRunContext) (*log.Logger, error) {
 	if dag.opts.newLoggerFunc == nil {
 		return log.Default(), nil
 	}
-	return dag.opts.newLoggerFunc(ctx)
+	return dag.opts.newLoggerFunc(ctx, dagRunCtx)
 }
 
 func (dag *DAG) NumOfTasksInSingleInvoke() int {
@@ -232,7 +229,7 @@ func (dag *DAG) WarkAllDependencies(fn func(ancestor *Task, descendant *Task) er
 }
 
 func (dag *DAG) Execute(ctx context.Context, dagRunCtx *DAGRunContext) (*DAGRunContext, error) {
-	l, err := dag.NewLogger(dagRunCtx)
+	l, err := dag.NewLogger(ctx, dagRunCtx)
 	if err != nil {
 		return dagRunCtx, err
 	}
@@ -243,10 +240,8 @@ func (dag *DAG) Execute(ctx context.Context, dagRunCtx *DAGRunContext) (*DAGRunC
 	if dagRunCtx.LambdaCallCount >= dag.CircuitBreaker() {
 		l.Printf("[info] DAG run CircuitBreak: DAGRunId %s    Lambda call Count %d", dagRunCtx.DAGRunID, dagRunCtx.LambdaCallCount)
 		dagRunCtx.Continue = false
-		return dagRunCtx, messages.InvokeResponse_Error{
-			Message: fmt.Sprintf("CircuitBreak: lambda call count over %d", dag.CircuitBreaker()),
-			Type:    "LambDAG.CircuitBreak",
-		}
+		dagRunCtx.IsCircuitBreak = true
+		return dagRunCtx, nil
 	}
 	finishedTasks := lo.Keys(dagRunCtx.TaskResponses)
 	executableTasks := dag.GetExecutableTasks(finishedTasks)
@@ -267,33 +262,14 @@ func (dag *DAG) Execute(ctx context.Context, dagRunCtx *DAGRunContext) (*DAGRunC
 		eg.Go(func() error {
 			taskID := task.ID()
 			l.Printf("[info] start task: DAGRunId %s    TaskId %s", dagRunCtx.DAGRunID, taskID)
-			resp, err := task.TaskHandler().Invoke(egCtx, &TaskRequest{
-				DAGRunID:      dagRunCtx.DAGRunID,
-				DAGRunConfig:  dagRunCtx.DAGRunConfig,
-				TaskResponses: dagRunCtx.TaskResponses,
-			})
+			resp, err := task.Execute(egCtx, dagRunCtx)
 			l.Printf("[info] end task: DAGRunId %s    TaskId %s  Success %v", dagRunCtx.DAGRunID, taskID, err == nil)
 			if err != nil {
-				var tre *TaskRetryableError
-				if errors.As(err, &tre) {
-					return messages.InvokeResponse_Error{
-						Message: tre.Error(),
-						Type:    "LambDAG.Retryable",
-					}
-				}
 				return err
-			}
-
-			respRawMessage, err := json.Marshal(resp)
-			if err != nil {
-				return messages.InvokeResponse_Error{
-					Message: err.Error(),
-					Type:    "LambDAG.ResponseInvalid",
-				}
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			dagRunCtx.TaskResponses[taskID] = respRawMessage
+			dagRunCtx.TaskResponses[taskID] = resp
 			finishedTasks = append(finishedTasks, taskID)
 			return nil
 		})

@@ -15,6 +15,7 @@ type Task struct {
 }
 
 type TaskOptions struct {
+	newLoggerFunc func(context.Context, *DAGRunContext) (*log.Logger, error)
 }
 
 type TaskRequest struct {
@@ -32,6 +33,13 @@ type TaskHandlerFunc func(context.Context, *TaskRequest) (interface{}, error)
 
 func (h TaskHandlerFunc) Invoke(ctx context.Context, req *TaskRequest) (interface{}, error) {
 	return h(ctx, req)
+}
+
+func WithTaskLogger(fn func(context.Context, *DAGRunContext) (*log.Logger, error)) func(opts *TaskOptions) error {
+	return func(opts *TaskOptions) error {
+		opts.newLoggerFunc = fn
+		return nil
+	}
 }
 
 func newTask(dag *DAG, id string, handler TaskHandler, optFns ...func(opts *TaskOptions) error) (*Task, error) {
@@ -54,6 +62,13 @@ func (task *Task) ID() string {
 
 func (task *Task) TaskHandler() TaskHandler {
 	return task.handler
+}
+
+func (task *Task) NewLogger(ctx context.Context, dagRunCtx *DAGRunContext) (*log.Logger, error) {
+	if task.opts.newLoggerFunc == nil {
+		return task.dag.NewLogger(ctx, dagRunCtx)
+	}
+	return task.opts.newLoggerFunc(ctx, dagRunCtx)
 }
 
 func (task *Task) SetDownstream(descendants ...*Task) error {
@@ -80,4 +95,22 @@ func (task *Task) String() string {
 
 func (task *Task) GoString() string {
 	return fmt.Sprintf("*lambdag.Task{ID:%s}", task.ID())
+}
+
+func (task *Task) Execute(ctx context.Context, dagRunCtx *DAGRunContext) (json.RawMessage, error) {
+	l, err := task.NewLogger(ctx, dagRunCtx)
+	if err != nil {
+		return nil, err
+	}
+	req := &TaskRequest{
+		DAGRunID:      dagRunCtx.DAGRunID,
+		DAGRunConfig:  dagRunCtx.DAGRunConfig,
+		TaskResponses: dagRunCtx.TaskResponses,
+		Logger:        l,
+	}
+	resp, err := task.TaskHandler().Invoke(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(resp)
 }

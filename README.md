@@ -74,7 +74,13 @@ func main() {
 }
 ```
 
-![SampleDAG](docs/sample_dag.png)
+```mermaid
+graph LR
+    task1("task1")
+    task2("task2")
+
+    task1-->task2
+```
 
 It is assumed to work with the runtime of the provided.al2
 

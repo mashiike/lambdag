@@ -1,12 +1,19 @@
 package lambdag
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"sort"
+	"sync"
 
+	"github.com/Songmu/flextime"
+	"github.com/aws/aws-lambda-go/lambda/messages"
 	libdag "github.com/heimdalr/dag"
 	"github.com/samber/lo"
+	"golang.org/x/sync/errgroup"
 )
 
 type DAG struct {
@@ -18,6 +25,7 @@ type DAG struct {
 type DAGOptions struct {
 	newLoggerFunc            func(*DAGRunContext) (*log.Logger, error)
 	numOfTasksInSingleInvoke int
+	circuitBreaker           int
 }
 
 func WithDAGLogger(fn func(*DAGRunContext) (*log.Logger, error)) func(opts *DAGOptions) error {
@@ -30,6 +38,13 @@ func WithDAGLogger(fn func(*DAGRunContext) (*log.Logger, error)) func(opts *DAGO
 func WithNumOfTasksInSingleInvoke(num int) func(opts *DAGOptions) error {
 	return func(opts *DAGOptions) error {
 		opts.numOfTasksInSingleInvoke = num
+		return nil
+	}
+}
+
+func WithCircuitBreaker(num int) func(opts *DAGOptions) error {
+	return func(opts *DAGOptions) error {
+		opts.circuitBreaker = num
 		return nil
 	}
 }
@@ -80,6 +95,15 @@ func (dag *DAG) NumOfTasksInSingleInvoke() int {
 		return 1
 	}
 	return dag.opts.numOfTasksInSingleInvoke
+}
+
+const defaultCircuitBreaker = 10000
+
+func (dag *DAG) CircuitBreaker() int {
+	if dag.opts.circuitBreaker <= 0 {
+		return defaultCircuitBreaker
+	}
+	return dag.opts.circuitBreaker
 }
 
 func (dag *DAG) AddDependency(ancestor *Task, descendant *Task) error {
@@ -205,4 +229,83 @@ func (dag *DAG) WarkAllDependencies(fn func(ancestor *Task, descendant *Task) er
 		}
 	}
 	return nil
+}
+
+func (dag *DAG) Execute(ctx context.Context, dagRunCtx *DAGRunContext) (*DAGRunContext, error) {
+	l, err := dag.NewLogger(dagRunCtx)
+	if err != nil {
+		return dagRunCtx, err
+	}
+	if dagRunCtx.LambdaCallCount == 0 {
+		l.Printf("[info] start new DAG: DAGRunId %s", dagRunCtx.DAGRunID)
+	}
+	dagRunCtx.LambdaCallCount++
+	if dagRunCtx.LambdaCallCount >= dag.CircuitBreaker() {
+		l.Printf("[info] DAG run CircuitBreak: DAGRunId %s    Lambda call Count %d", dagRunCtx.DAGRunID, dagRunCtx.LambdaCallCount)
+		dagRunCtx.Continue = false
+		return dagRunCtx, messages.InvokeResponse_Error{
+			Message: fmt.Sprintf("CircuitBreak: lambda call count over %d", dag.CircuitBreaker()),
+			Type:    "LambDAG.CircuitBreak",
+		}
+	}
+	finishedTasks := lo.Keys(dagRunCtx.TaskResponses)
+	executableTasks := dag.GetExecutableTasks(finishedTasks)
+	dagRunCtx.Continue = true
+	if len(executableTasks) == 0 {
+		now := flextime.Now()
+		l.Printf("[info] end DAG: DAGRunId %s    DAG Run duration %s", dagRunCtx.DAGRunID, now.Sub(dagRunCtx.DAGRunStartAt))
+		dagRunCtx.Continue = false
+		return dagRunCtx, nil
+	}
+	eg, egCtx := errgroup.WithContext(ctx)
+	var mu sync.Mutex
+	for i := 0; i < dag.NumOfTasksInSingleInvoke(); i++ {
+		if i >= len(executableTasks) {
+			break
+		}
+		task := executableTasks[i]
+		eg.Go(func() error {
+			taskID := task.ID()
+			l.Printf("[info] start task: DAGRunId %s    TaskId %s", dagRunCtx.DAGRunID, taskID)
+			resp, err := task.TaskHandler().Invoke(egCtx, &TaskRequest{
+				DAGRunID:      dagRunCtx.DAGRunID,
+				DAGRunConfig:  dagRunCtx.DAGRunConfig,
+				TaskResponses: dagRunCtx.TaskResponses,
+			})
+			l.Printf("[info] end task: DAGRunId %s    TaskId %s  Success %v", dagRunCtx.DAGRunID, taskID, err == nil)
+			if err != nil {
+				var tre *TaskRetryableError
+				if errors.As(err, &tre) {
+					return messages.InvokeResponse_Error{
+						Message: tre.Error(),
+						Type:    "LambDAG.Retryable",
+					}
+				}
+				return err
+			}
+
+			respRawMessage, err := json.Marshal(resp)
+			if err != nil {
+				return messages.InvokeResponse_Error{
+					Message: err.Error(),
+					Type:    "LambDAG.ResponseInvalid",
+				}
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			dagRunCtx.TaskResponses[taskID] = respRawMessage
+			finishedTasks = append(finishedTasks, taskID)
+			return nil
+		})
+	}
+	if err := eg.Wait(); err != nil {
+		return dagRunCtx, err
+	}
+	executableTasks = dag.GetExecutableTasks(finishedTasks)
+	if len(executableTasks) == 0 {
+		now := flextime.Now()
+		l.Printf("[info] end DAG: DAGRunId %s    DAG Run duration %s", dagRunCtx.DAGRunID, now.Sub(dagRunCtx.DAGRunStartAt))
+		dagRunCtx.Continue = false
+	}
+	return dagRunCtx, nil
 }

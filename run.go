@@ -119,7 +119,7 @@ type renderCommand struct {
 func (cmd *renderCommand) Name() string     { return "render" }
 func (cmd *renderCommand) Synopsis() string { return "rendering DAG" }
 func (cmd *renderCommand) SetFlags(fs *flag.FlagSet) {
-	fs.StringVar(&cmd.format, "format", "dot", "rendering format")
+	fs.StringVar(&cmd.format, "format", "markdown", "rendering format (markdown|mermaid|dot)")
 }
 func (cmd *renderCommand) Usage() string {
 	return `render [options]:
@@ -133,6 +133,10 @@ func (cmd *renderCommand) Execute(ctx context.Context, fs *flag.FlagSet, _ ...in
 		return subcommands.ExitSuccess
 	}
 	switch cmd.format {
+	case "markdown":
+		return cmd.renderMarkdown(ctx, os.Stdout)
+	case "mermaid":
+		return cmd.renderMermaid(ctx, os.Stdout)
 	case "dot":
 		return cmd.renderDOT(ctx, os.Stdout)
 	}
@@ -171,5 +175,40 @@ func (cmd *renderCommand) renderDOT(ctx context.Context, stdout io.Writer) subco
 		return subcommands.ExitFailure
 	}
 	io.WriteString(stdout, g.String())
+	return subcommands.ExitSuccess
+}
+
+func (cmd *renderCommand) renderMermaid(ctx context.Context, stdout io.Writer) subcommands.ExitStatus {
+	var builder strings.Builder
+	builder.WriteString("graph LR\n")
+	tasks := cmd.dag.GetAllTasks()
+	convert := func(id string) string {
+		return strings.ReplaceAll(strings.ReplaceAll(id, " ", "_"), "-", "_")
+	}
+	for _, task := range tasks {
+		id := task.ID()
+		fmt.Fprintf(&builder, "    %s(\"%s\")\n", convert(id), id)
+	}
+	builder.WriteRune('\n')
+	if err := cmd.dag.WarkAllDependencies(func(ancestor, descendant *Task) error {
+		fmt.Fprintf(&builder, "    %s-->%s\n", convert(ancestor.ID()), convert(descendant.ID()))
+		return nil
+
+	}); err != nil {
+		log.Println("[error] ", err)
+		return subcommands.ExitFailure
+	}
+	io.WriteString(stdout, builder.String())
+	return subcommands.ExitSuccess
+}
+
+func (cmd *renderCommand) renderMarkdown(ctx context.Context, stdout io.Writer) subcommands.ExitStatus {
+	var builder strings.Builder
+	builder.WriteString("```mermaid\n")
+	if status := cmd.renderMermaid(ctx, &builder); status != subcommands.ExitSuccess {
+		return status
+	}
+	builder.WriteString("```\n")
+	io.WriteString(stdout, builder.String())
 	return subcommands.ExitSuccess
 }

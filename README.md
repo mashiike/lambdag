@@ -124,9 +124,6 @@ $ go run _examples/src/main.go serve
 ```shell
 aws lambda --endpoint http://localhost:3001 invoke --function-name SampleDAG --cli-binary-format raw-in-base64-out --payload '{"Comment":"this is dag run config"}' output.txt --log-type Tail --qualifier current
 ```
-
-## v0.0.0 WIP
-
 ## LICENSE
 
 MIT License

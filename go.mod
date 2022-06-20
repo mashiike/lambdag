@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.16.5
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.23.2
 	github.com/google/subcommands v1.2.0
-	github.com/google/uuid v1.1.2
+	github.com/google/uuid v1.3.0
 	github.com/heimdalr/dag v1.1.1
 	github.com/samber/lo v1.21.0
 	github.com/stretchr/testify v1.7.2

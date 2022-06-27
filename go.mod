@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.23.2
 	github.com/google/subcommands v1.2.0
 	github.com/google/uuid v1.3.0
-	github.com/heimdalr/dag v1.1.1
+	github.com/heimdalr/dag v1.2.1
 	github.com/samber/lo v1.21.0
 	github.com/stretchr/testify v1.7.2
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f

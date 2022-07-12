@@ -13,8 +13,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type Hoge lambda.Handler
-
 type LambdaHandler struct {
 	dag *DAG
 }

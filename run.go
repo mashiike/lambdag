@@ -59,15 +59,17 @@ func newCommander(args []string, dag *DAG) (*subcommands.Commander, *flag.FlagSe
 }
 
 type serveCommand struct {
-	commander *subcommands.Commander
-	dag       *DAG
-	port      int
+	commander          *subcommands.Commander
+	dag                *DAG
+	port               int
+	lambdaFunctionName string
 }
 
 func (cmd *serveCommand) Name() string     { return "serve" }
 func (cmd *serveCommand) Synopsis() string { return "start a stub server for the lambda Invoke API" }
 func (cmd *serveCommand) SetFlags(fs *flag.FlagSet) {
 	fs.IntVar(&cmd.port, "port", 3001, "stub server port")
+	fs.StringVar(&cmd.lambdaFunctionName, "lambda-function-name", cmd.dag.ID(), "stub lambda function name")
 }
 func (cmd *serveCommand) Usage() string {
 	return fmt.Sprintf(`serve [options]:
@@ -91,7 +93,7 @@ func (cmd *serveCommand) Execute(ctx context.Context, fs *flag.FlagSet, _ ...int
 	if err != nil {
 		l.Printf("[error] couldn't listen to %s: %s", address, err.Error())
 	}
-	srv := http.Server{Handler: NewLambdaAPIStubMux(cmd.dag.ID(), NewLambdaHandler(cmd.dag))}
+	srv := http.Server{Handler: NewLambdaAPIStubMux(cmd.lambdaFunctionName, NewLambdaHandler(cmd.dag))}
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() {

@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/Songmu/flextime v0.1.0
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
-	github.com/aws/aws-lambda-go v1.32.1
+	github.com/aws/aws-lambda-go v1.33.0
 	github.com/aws/aws-sdk-go-v2 v1.16.7
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.23.4
 	github.com/google/subcommands v1.2.0
@@ -24,6 +24,6 @@ require (
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	golang.org/x/exp v0.0.0-20220706164943-b4a6d9510983 // indirect
+	golang.org/x/exp v0.0.0-20220713135740-79cabaa25d75 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

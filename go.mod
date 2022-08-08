@@ -6,7 +6,7 @@ require (
 	github.com/Songmu/flextime v0.1.0
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
 	github.com/aws/aws-lambda-go v1.33.0
-	github.com/aws/aws-sdk-go-v2 v1.16.7
+	github.com/aws/aws-sdk-go-v2 v1.16.9
 	github.com/aws/aws-sdk-go-v2/service/lambda v1.23.4
 	github.com/google/subcommands v1.2.0
 	github.com/google/uuid v1.3.0

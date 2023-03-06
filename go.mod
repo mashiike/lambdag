@@ -12,7 +12,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/heimdalr/dag v1.2.1
 	github.com/samber/lo v1.25.0
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.2
 	golang.org/x/sync v0.0.0-20220601150217-0de741cfad7f
 )
 
